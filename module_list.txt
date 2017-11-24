@@ -1,0 +1,2 @@
+https://github.com/karulis/pybluez
+https://github.com/dronekit/dronekit-python

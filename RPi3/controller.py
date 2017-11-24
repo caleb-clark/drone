@@ -3,8 +3,8 @@ import time
 
 # Import the MCP4725 module.
 import Adafruit_MCP4725
-
-
+from wiringSetup import *
+from cmd import *
 class controller:
 
 
@@ -12,9 +12,9 @@ class controller:
 		# Create a DAC instance.
 		self.dac = Adafruit_MCP4725.MCP4725() # reference to DAC
 		self.dacInputVoltage = dacInputVoltage #input to the DAC 3.3 V or 5 V
-
-		self.RPi0 = pi2pi()
-
+		self.enablePins = [7,11,13,15]
+		#self.RPi0 = pi2pi()
+		self.armPin = 29
 		
 		''' Default values for joystick axis voltage levels '''
 		self.defaultVerticalVoltage = 0.08 # Volts
@@ -42,33 +42,52 @@ class controller:
 		self.currLateralPower = 0
 		self.currForwardPower = 0
 
+		self.verticalMultiplier = 1.0
+		self.rotationalMultiplier = 1.0
+		self.lateralMultiplier = 1.0
+		self.forwardMultiplier = 1.0
+
+		with open('multipliers.txt','r') as inputfile:
+			tmp = inputfile.readlines()
+			if len(tmp) == 4:
+				self.verticalMultiplier = float(tmp[0])
+				self.rotationalMultiplier = float(tmp[1])
+				self.lateralMultiplier = float(tmp[2])
+				self.forwardMultiplier = float(tmp[3])
+
+		initPins()
+		temp_ = self.enablePins
+		temp_.append(self.armPin)
+		setup(temp_, [])
+
+
 
 	def setDefaultPowerLevels(self):
 		''' Reset joysticks to their default values '''
-		if verticalPower(self.defaultVerticalPower) == -1:
+		if self.verticalPower(self.defaultVerticalPower) == -1:
 			print ('Idle failed: Could not set vertical power levels')
 			return -1
-		if rotationalPower(self.defaultRotationalPower) == -1:
+		if self.rotationalPower(self.defaultRotationalPower) == -1:
 			print ('Idle failed: Could not set rotational power levels')
 			return -1
-		if lateralPower(self.defaultLateralPower) == -1:
+		if self.lateralPower(self.defaultLateralPower) == -1:
 			print ('Idle failed: Could not set lateral power levels')
 			return -1
-		if forwardPower(self.defaultForwardPower) == -1:
+		if self.forwardPower(self.defaultForwardPower) == -1:
 			print ('Idle failed: Could not set forward power levels')
 			return -1
 	def setLiftOffPowerLevels(self):
 		''' Reset joysticks to their default values '''
-		if verticalPower(0) == -1:
+		if self.verticalPower(0) == -1:
 			print ('Lift off failed: Could not set vertical power level for lift off')
 			return -1
-		if rotationalPower(self.defaultRotationalPower) == -1:
+		if self.rotationalPower(self.defaultRotationalPower) == -1:
 			print ('Lift off failed: Could not set rotational power level for lift off')
 			return -1
-		if lateralPower(self.defaultLateralPower) == -1:
+		if self.lateralPower(self.defaultLateralPower) == -1:
 			print ('Lift off failed: Could not set lateral power level for lift off')
 			return -1
-		if forwardPower(self.defaultForwardPower) == -1:
+		if self.forwardPower(self.defaultForwardPower) == -1:
 			print ('Lift off failed: Could not set forward power level for lift off')
 			return -1
 
@@ -79,7 +98,7 @@ class controller:
 
 		# place the joysticks at appropriate power for liftoff 
 
-		setLiftOffPowerLevels()
+		self.setLiftOffPowerLevels()
 
 		# see if we can arm the drone
 
@@ -89,44 +108,16 @@ class controller:
 
 		return 0
 
+	def liftOffNoComms(self):
 
-	def liftOff(self):
-
-		# Need to prepare the drone for liftoff and then slowly
-		# ascend until RPi0 tells us to stop. If connection with RPi0 is lost
-		# immediately start idling and attempt to reconnect with RPi0
-
-		if self.prepareForLiftOff() == -1:
-			print('Lift off failed: Look above for reason')
-			return -1
-
-		# Ask the RPi0 if we can arm the drone
-		# also notifies the RPi0 that we're arming 
-		# and to start checking that it is armed
-
-		print('Requesting permission to arm...')
-		if self.RPi0.requestPermissionToArm() == -1:
-			print('Could not get permission to arm drone')
-			return -1
-
-		print('done.')
-
-		# We have permission and have notified RPi0
-		# so now attempt to arm drone
+		self.setLiftOffPowerLevels()
 
 		print('Attempting to arm drone...')
-
 		if self.armDrone() == -1:
 			print('Lift off failed: Could not arm drone')
 			return -1
-		
+
 		print('done')
-
-		# Drone is armed but we have a limited amount of time to increase vertical power
-		# before the drone automatically disarms
-
-		# Ramp up vertical power to 50 % quickly since the drone won't take off 
-		# until the power is over 50 %
 
 		print('Prepare for lift off!')
 
@@ -134,40 +125,15 @@ class controller:
 			verticalPower(self.currVerticalPower + 1)
 			time.sleep(0.02)
 
-		# anything beyond our current power level will start lifting the drone off
-		# the ground. Need more interaction with RPi0 at this point
+		ascent_power = 55
 
-		ascent_power = RPi0.getLiftOffPower() 
+		self.verticalPower(ascent_power)
 
-		if ascent_power == -1:
-			# if there's not a value set
-			# go for something conservative
-			ascent_power = 55
+		time.sleep(2)
 
-		# hope for the best!
-		verticalPower(ascent_power)
+		self.setDefaultPowerLevels()
 
-		if self.RPi0.getStatus() != 0:
-			self.badStatusProcedure()
-		elif not self.RPi0.connected():
-			self.lostConnectionProcedure()
-
-		vertical_power_delta = self.RPi0.getVerticalPowerDelta()
-
-
-		# 999 means stop moving!
-		while vertical_power_delta != 999 and RPi0.getStatus() == 0:
-			verticalPower(self.currVerticalPower + vertical_power_delta)
-			vertical_power_delta = self.RPi0.getVerticalPowerDelta()
-
-		# We made it!
-		verticalPower(self.defaultVerticalPower)
-
-		# Set levels to default to idle
-
-		setDefaultPowerLevels()
-
-	def land():
+	def land(self, configDict, attr):
 		''' 
 		The land function assumes that the ground is clear but must
 		maintain communication with the RPi0 to coordinate landing
@@ -179,18 +145,9 @@ class controller:
 		# hault all movement of the vehicle
 
 		setDefaultPowerLevels()
-
-		while not self.RPi0.clearedForLanding():
-			print('Landing was not cleared by RPi0, idling...')
-			time.sleep(0.5)
-
-		print('Cleared to land')
-
-		
-
-
-
-
+		verticalPower(45)
+		while configDict[attr] == 1 or configDict[attr] == '1':
+			time.sleep(0.1)
 
 
 
@@ -208,10 +165,16 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
-			voltage_dac_val = self.powerToDacVal(power)
-			dac.set_voltage(voltage_val)
+			self.enable(0)
+			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.verticalMultiplier
+			print(voltage_dac_val)
+			self.dac.set_voltage(int(voltage_dac_val))
 			self.currVerticalPower = power
 			return 0
+	def fbf(self):
+		self.verticalPower(50.5)
+		time.sleep(0.1)
+		self.verticalPower(0)
 
 	def rotationalPower(self, power):
 		''' 
@@ -227,8 +190,9 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
-			voltage_dac_val = self.powerToDacVal(power)
-			dac.set_voltage(voltage_val)
+			self.enable(1)
+			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.rotationalMultiplier
+			self.dac.set_voltage(int(voltage_dac_val))
 			self.currRotationalPower = power
 			return 0
 
@@ -247,8 +211,9 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
-			voltage_dac_val = self.powerToDacVal(power)
-			dac.set_voltage(voltage_val)
+			self.enable(2)
+			voltage_dac_val = ((4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0)))*self.lateralMultiplier
+			self.dac.set_voltage(int(voltage_dac_val))
 			self.currLateralPower = power
 			return 0
 
@@ -267,8 +232,9 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
-			voltage_dac_val = self.powerToDacVal(power)
-			dac.set_voltage(voltage_val)
+			self.enable(3)
+			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.forwardMultiplier
+			self.dac.set_voltage(int(voltage_dac_val))
 			self.currForwardPower = power
 			return 0
 
@@ -286,7 +252,94 @@ class controller:
 		Convert a percent power value to a DAC value (0 - 4096)
 
 		'''
-		return ((power/100.0) * 4096.0)
+		val = ((power/100.0) * 4096.0)
+		print(val)
+		return val
+	
 
 
+	def enable(self,p):
+		if p < 0 or p > 3:
+			print('invalid')
+			return
+		if p == 0:
+			turnOff(self.enablePins[0])
+			turnOn(self.enablePins[1])
+			turnOn(self.enablePins[2])
+			turnOn(self.enablePins[3])
+		elif p == 1:
+			turnOn(self.enablePins[0])
+			turnOff(self.enablePins[1])
+			turnOn(self.enablePins[2])
+			turnOn(self.enablePins[3])
+		elif p == 2:
+			turnOn(self.enablePins[0])
+			turnOn(self.enablePins[1])
+			turnOff(self.enablePins[2])
+			turnOn(self.enablePins[3])
+		elif p == 3:
+			turnOn(self.enablePins[0])
+			turnOn(self.enablePins[1])
+			turnOn(self.enablePins[2])
+			turnOff(self.enablePins[3])
+
+	def arm(self):
+		turnOn(self.armPin)
+		time.sleep(3)
+		turnOff(self.armPin)
+		return 0
+	def calibrate(self):
+		while True:
+			print('Calibrating 0th DAC')
+			print(str(self.verticalMultiplier))
+			self.verticalPower(50)
+			should_be = 0.5*3.42
+			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.verticalMultiplier = self.verticalMultiplier*float(should_be)/float(actual)
+			self.verticalPower(50)
+			check = raw_input("Does that look good? 1=yes, 0=no: ")
+			if check == '1' or check == "1":
+				break
+			print('\n')
+		while True:
+			print('Calibrating 1st DAC')
+			self.rotationalPower(50)
+			should_be = 0.5*3.42
+			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.rotationalMultiplier = self.rotationalMultiplier*float(should_be)/float(actual)
+			self.rotationalPower(50)
+			check = raw_input("Does that look good? 1=yes, 0=no: ")
+			if check == '1' or check == "1":
+				break
+			print('\n')
+		while True:
+			print('Calibrating 2nd DAC')
+			self.lateralPower(50)
+			should_be = 0.5*3.42
+			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.lateralMultiplier = self.lateralMultiplier*(float(should_be)/float(actual))
+			self.lateralPower(50)
+			check = raw_input("Does that look good? 1=yes, 0=no: ")
+			if check == '1' or check == "1":
+				break
+			print('\n')
+		while True:
+			print('Calibrating 3rd DAC')
+			self.forwardPower(50)
+			should_be = 0.5*3.42
+			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.forwardMultiplier = self.forwardMultiplier*float(should_be)/float(actual)
+			self.forwardPower(50)
+			check = raw_input("Does that look good? 1=yes, 0=no: ")
+			if check == '1' or check == "1":
+				break
+			print('\n')
+		with open('multipliers.txt', 'w+') as outfile:
+			outfile.write(str(self.verticalMultiplier)+'\n')
+			outfile.write(str(self.rotationalMultiplier)+'\n')
+			outfile.write(str(self.lateralMultiplier)+'\n')
+			outfile.write(str(self.forwardMultiplier)+'\n')
+			
+		
+		
 
