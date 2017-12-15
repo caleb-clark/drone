@@ -161,6 +161,9 @@ class controller:
 		if power < 0 or power > 100:
 			print('Invalid power value')
 			return -1
+		elif raw_voltage_val > self.maxVoltage:
+			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
+			return -1
 		else:
 			self.enable(0)
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.verticalMultiplier
@@ -225,7 +228,9 @@ class controller:
 		if power < 0 or power > 100:
 			print('Invalid power value')
 			return -1
-
+		elif raw_voltage_val > self.maxVoltage:
+			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
+			return -1
 		else:
 			self.enable(3)
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.forwardMultiplier
@@ -335,30 +340,6 @@ class controller:
 			outfile.write(str(self.lateralMultiplier)+'\n')
 			outfile.write(str(self.forwardMultiplier)+'\n')
 			
-	
-
-	def test1(self,power,time_):
-		self.verticalPower2(power)
-		time.sleep(time_)
-		self.verticalPower2(52)
-
-		time.sleep(4)
-		for i in range(0,50):
-			self.verticalPower2(50-i-1)
-			time.sleep(0.2)
-	
-	def verticalPower2(self, power):
-		diff = power - self.currVerticalPower
-		currPower = self.currVerticalPower
-		third = 1
-		if diff < 0:
-			third = -1
-		for i in range(0, diff+third, third):
-			self.verticalPower(currPower+i)
-			print(self.currVerticalPower)
-
-g = controller(5.0)
-g.setLiftOffPowerLevels()
-	
-
+		
+		
 
