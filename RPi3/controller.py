@@ -1,4 +1,4 @@
-
+import threading
 import time
 
 # Import the MCP4725 module.
@@ -390,6 +390,7 @@ class controller:
 			self.verticalPower(currPower+i)
 			print(self.currVerticalPower)
 
+
 	def rotationalPower2(self, power):
 		diff = power - self.currRotationalPower
 		currPower = self.currRotationalPower
@@ -418,8 +419,34 @@ class controller:
 			self.forwardPower(currPower+i)
 			print(self.currForwardPower)
 
-g = controller(5.0)
-g.setLiftOffPowerLevels()
 	
 
 
+	def lisener(self):
+		ser = serial.Serial('dev/tty.usbserial', 9600)
+		while(True):
+			voltages = ser.readLine().split(" ")
+			errVertical = (round(float(voltages[0],2)) == round(float(self.currVerticalVoltage),2))
+			errRotational = (round(float(voltages[1],2)) == round(float(self.currRotationalVoltage),2))
+			errLateral = (round(float(voltages[2],2))== round(float(self.currLateralVoltage),2))
+			errForward = (round(float(voltages[3],2)) == round(float(self.currForwardVoltage),2))
+			if errVertical :
+				self.verticalMultiplier = self.verticalMultiplier*float(self.currVerticalVoltage)/float(voltages[0])
+				self.verticalPower(self.currVerticalPower)
+	                if errRotational :
+        	                self.rotationalMultiplier = self.rotationalMultiplier*float(self.currRotationalVoltage)/float(voltages[1])
+                	        self.rotationalPower(self.currRotationalPower)
+			if errLateral :
+				self.lateralMultiplier = self.lateralMultiplier*float(self.currLateralMultiplier)/float(voltages[2])
+				self.lateralPower(self.currLateralPower)
+			if errForwarrd:
+				seld.forwardMultiplier = self.forwardMultiplier*float(self.currForwardMultiplier)/float(voltages[3])
+				self.forwardPower(self.currForwardPower)
+
+
+
+
+
+g = controller(5.0)
+g.setLiftOffPowerLevels()
+threadingg.Thread(target=g.listener).start()
