@@ -61,6 +61,7 @@ class controller:
 		temp_.append(self.armPin)
 		setup(temp_, [])
 
+		threading.Thread(target=self.listener).start()
 
 
 
@@ -419,34 +420,48 @@ class controller:
 			self.forwardPower(currPower+i)
 			print(self.currForwardPower)
 
-	
+
 
 
 	def lisener(self):
 		ser = serial.Serial('dev/tty.usbserial', 9600)
 		while(True):
+			ser.write(bytes(b'GET'))
 			voltages = ser.readLine().split(" ")
-			errVertical = (round(float(voltages[0],2)) == round(float(self.currVerticalVoltage),2))
-			errRotational = (round(float(voltages[1],2)) == round(float(self.currRotationalVoltage),2))
-			errLateral = (round(float(voltages[2],2))== round(float(self.currLateralVoltage),2))
-			errForward = (round(float(voltages[3],2)) == round(float(self.currForwardVoltage),2))
+			errVertical = (round(float(voltages[0],2)) != round(float(self.currVerticalVoltage),2))
+			errRotational = (round(float(voltages[1],2)) != round(float(self.currRotationalVoltage),2))
+			errLateral = (round(float(voltages[2],2))!= round(float(self.currLateralVoltage),2))
+			errForward = (round(float(voltages[3],2)) != round(float(self.currForwardVoltage),2))
 			if errVertical :
+				self.multiplierLock.acquire()
 				self.verticalMultiplier = self.verticalMultiplier*float(self.currVerticalVoltage)/float(voltages[0])
+				self.multiplierLock.release()
 				self.verticalPower(self.currVerticalPower)
-	                if errRotational :
-        	                self.rotationalMultiplier = self.rotationalMultiplier*float(self.currRotationalVoltage)/float(voltages[1])
-                	        self.rotationalPower(self.currRotationalPower)
+            	
+            if errRotational :
+            	self.multiplierLock.acquire()
+                self.rotationalMultiplier = self.rotationalMultiplier*float(self.currRotationalVoltage)/float(voltages[1])
+                self.multiplierLock.release()
+    	        self.rotationalPower(self.currRotationalPower)
+				
 			if errLateral :
+				self.multiplierLock.acquire()
 				self.lateralMultiplier = self.lateralMultiplier*float(self.currLateralMultiplier)/float(voltages[2])
+				self.multiplierLock.release()
 				self.lateralPower(self.currLateralPower)
-			if errForwarrd:
-				seld.forwardMultiplier = self.forwardMultiplier*float(self.currForwardMultiplier)/float(voltages[3])
+				
+			if errForward:
+				self.multiplierLock.acquire()
+				self.forwardMultiplier = self.forwardMultiplier*float(self.currForwardMultiplier)/float(voltages[3])
+				self.multiplierLock.release()
 				self.forwardPower(self.currForwardPower)
+	
 
+		
 
 
 
 
 g = controller(5.0)
 g.setLiftOffPowerLevels()
-threadingg.Thread(target=g.listener).start()
+
