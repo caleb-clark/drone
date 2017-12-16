@@ -275,7 +275,7 @@ class controller:
 
 		'''
 		val = ((power/100.0) * 4096.0)
-		print(val)
+		#print(val)
 		return val
 	
 
@@ -441,19 +441,16 @@ class controller:
                         voltages2 = voltages2.split(" ")
                         if len(voltages2) != 4:
                             continue
-			print(voltages2)
+			#print(voltages2)
                         voltages = []
                         for i in voltages2:
-                            voltages.append(float(i)/100.0)
-                        for i in voltages:
-                            print(i)
-			errVertical = (round(float(voltages[0]),2) != round(float(self.currVerticalVoltage),2))
-			errRotational = (round(float(voltages[1]),2) != round(float(self.currRotationalVoltage),2))
-			errLateral = (round(float(voltages[2]),2)!= round(float(self.currLateralVoltage),2))
-			errForward = (round(float(voltages[3]),2) != round(float(self.currForwardVoltage),2))
-                        for i in range(0,len(voltages)):
-                            if type(voltages[i]) is float:
-                                print('float')
+                            voltages.append(float(i)/10000.0)
+                        #for i in voltages:
+                        #print(i)
+			errVertical = (round(float(voltages[0]),4) != round(float(self.currVerticalVoltage),4))
+			errRotational = (round(float(voltages[1]),4) != round(float(self.currRotationalVoltage),4))
+			errLateral = (round(float(voltages[2]),4)!= round(float(self.currLateralVoltage),4))
+			errForward = (round(float(voltages[3]),4) != round(float(self.currForwardVoltage),4))
                         
                         if errVertical and voltages[0] > 0.0:
 				self.multiplierLock.acquire()
@@ -486,6 +483,6 @@ class controller:
 
 
 
-g = controller(5.095)
+g = controller(5.117)
 g.setLiftOffPowerLevels()
 

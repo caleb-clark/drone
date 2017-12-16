@@ -4,7 +4,7 @@ void setup();
 void loop();
 #line 1 "src/blah.ino"
 
-float voltage_lvl = 5.1;
+float voltage_lvl = 5.075;
 
 void setup()
 {
@@ -29,20 +29,20 @@ void loop()
     //Serial.println(response);
     
     
-    float zero = analogRead(A5);
+    float zero = analogRead(A0);
     float one = analogRead(A1);
     float two = analogRead(A2);
     float three = analogRead(A3);
   
-    float zero_ = 100*(zero*voltage_lvl)/1024.0;
+    float zero_ = 10000*((zero*voltage_lvl)/1024.0);
   
-    float one_ = 100*(one*voltage_lvl)/1024.0;
+    float one_ = 10000*((one*voltage_lvl)/1024.0);
   
-    float two_ = 100*(two*voltage_lvl)/1024.0;
+    float two_ = 10000*((two*voltage_lvl)/1024.0);
   
-    float three_ = 100*(three*voltage_lvl)/1024.0;
+    float three_ = 10000*((three*voltage_lvl)/1024.0);
   
-    Serial.println(String((int)zero_) + " " + String((int)one_) + " " + String((int)two_) + " " + String((int)three_));
+    Serial.println(String((unsigned int)zero_) + " " + String((unsigned int)one_) + " " + String((unsigned int)two_) + " " + String((unsigned int)three_));
     
   
   
