@@ -1,0 +1,6 @@
+the drone is going to the right and back but the voltage levels would indicate that it is going to the left and back
+- controller input 3.342
+- neutral voltage 1.6735
+- lateral voltage 1.702
+- forward voltage 1.702
+- pay back Eric
