@@ -34,7 +34,7 @@ class controller:
 
 		''' Minimum and maximum voltages to write to joysticks '''
 		self.minVoltage = 0.08 # minimum voltage to write to joystick axis
-		self.maxVoltage = 3.42 # maximum voltage to write to joystick axis
+		self.maxVoltage = 3.345 # maximum voltage to write to joystick axis
 
 		self.currVerticalVoltage = 0.0
 		self.currRotationalVoltage = 0.0
@@ -169,7 +169,7 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(0)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.verticalMultiplier
+			voltage_dac_val = (4096.0*(self.maxVoltage/self.dacInputVoltage) - self.powerToDacVal(power)*(self.maxVoltage/self.dacInputVoltage))*self.verticalMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
@@ -199,7 +199,7 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(1)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.rotationalMultiplier
+			voltage_dac_val = (4096.0*(self.maxVoltage/self.dacInputVoltage) - self.powerToDacVal(power)*(self.maxVoltage/self.dacInputVoltage))*self.rotationalMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
@@ -226,7 +226,7 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(2)
 			self.multiplierLock.acquire()
-			voltage_dac_val = ((4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage)))*self.lateralMultiplier
+			voltage_dac_val = ((4096.0*(self.maxVoltage/self.dacInputVoltage) - self.powerToDacVal(power)*(self.maxVoltage/self.dacInputVoltage)))*self.lateralMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
@@ -251,7 +251,7 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(3)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.forwardMultiplier
+			voltage_dac_val = (4096.0*(self.maxVoltage/self.dacInputVoltage) - self.powerToDacVal(power)*(self.maxVoltage/self.dacInputVoltage))*self.forwardMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
@@ -314,7 +314,7 @@ class controller:
 			print('Calibrating 0th DAC')
 			
 			self.verticalPower(50)
-			should_be = 0.5*3.42
+			should_be = 0.5*self.maxVoltage
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
 			self.multiplierLock.acquire()
 			self.verticalMultiplier = self.verticalMultiplier*float(should_be)/float(actual)
@@ -327,7 +327,7 @@ class controller:
 		while True:
 			print('Calibrating 1st DAC')
 			self.rotationalPower(50)
-			should_be = 0.5*3.42
+			should_be = 0.5*self.maxVoltage
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
 			self.multiplierLock.acquire()
 			self.rotationalMultiplier = self.rotationalMultiplier*float(should_be)/float(actual)
@@ -340,7 +340,7 @@ class controller:
 		while True:
 			print('Calibrating 2nd DAC')
 			self.lateralPower(50)
-			should_be = 0.5*3.42
+			should_be = 0.5*self.maxVoltage
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
 			self.multiplierLock.acquire()
 			self.lateralMultiplier = self.lateralMultiplier*(float(should_be)/float(actual))
@@ -353,7 +353,7 @@ class controller:
 		while True:
 			print('Calibrating 3rd DAC')
 			self.forwardPower(50)
-			should_be = 0.5*3.42
+			should_be = 0.5*self.maxVoltage
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
 			self.multiplierLock.acquire()
 			self.forwardMultiplier = self.forwardMultiplier*float(should_be)/float(actual)
