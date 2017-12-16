@@ -5,6 +5,9 @@ import time
 import Adafruit_MCP4725
 from wiringSetup import *
 from cmd import *
+import serial
+
+
 class controller:
 
 
@@ -60,6 +63,7 @@ class controller:
 		temp_.append(self.armPin)
 		setup(temp_, [])
 
+		
 
 
 	def setDefaultPowerLevels(self):
@@ -356,6 +360,34 @@ class controller:
 		for i in range(0, diff+third, third):
 			self.verticalPower(currPower+i)
 			print(self.currVerticalPower)
+
+	def rotationalPower2(self, power):
+		diff = power - self.currRotationalPower
+		currPower = self.currRotationalPower
+		third = 1
+		if diff < 0:
+			third = -1
+		for i in range(0, diff+third, third):
+			self.rotationalPower(currPower+i)
+			print(self.currRotationalPower)
+	def  lateralPower2(self, power):
+		diff = power - self.currLateralPower
+		currPower = self.currLateralPower
+		third = 1
+		if diff < 0:
+			third = -1
+		for i in range(0, diff+third, third):
+			self.lateralPower(currPower+i)
+			print(self.currLateralPower)
+	def forwardPower2(self, power):
+		diff = power - self.currForwardPower
+		currPower = self.currForwardPower
+		third = 1
+		if diff < 0:
+			third = -1
+		for i in range(0, diff+third, third):
+			self.forwardPower(currPower+i)
+			print(self.currForwardPower)
 
 g = controller(5.0)
 g.setLiftOffPowerLevels()
