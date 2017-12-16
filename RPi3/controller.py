@@ -63,7 +63,7 @@ class controller:
 		temp_.append(self.armPin)
 		setup(temp_, [])
 
-		
+
 
 
 	def setDefaultPowerLevels(self):
@@ -171,6 +171,7 @@ class controller:
 			print(voltage_dac_val)
 			self.dac.set_voltage(int(voltage_dac_val))
 			self.currVerticalPower = power
+			self.currVerticalVoltage = (voltage_dac_val/4096.0)*5.0
 			return 0
 	def fbf(self):
 		self.verticalPower(50.5)
@@ -195,6 +196,7 @@ class controller:
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.rotationalMultiplier
 			self.dac.set_voltage(int(voltage_dac_val))
 			self.currRotationalPower = power
+			self.currRotationalVoltage = (voltage_dac_val/4096.0)*5.0
 			return 0
 
 
@@ -216,6 +218,7 @@ class controller:
 			voltage_dac_val = ((4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0)))*self.lateralMultiplier
 			self.dac.set_voltage(int(voltage_dac_val))
 			self.currLateralPower = power
+			self.currLateralPower = (voltage_dac_val/4096.0)*5.0
 			return 0
 
 
@@ -235,6 +238,7 @@ class controller:
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.forwardMultiplier
 			self.dac.set_voltage(int(voltage_dac_val))
 			self.currForwardPower = power
+			self.currForwardVoltage = (voltage_dac_val/4096.0)*5.0
 			return 0
 
 
@@ -255,7 +259,6 @@ class controller:
 		print(val)
 		return val
 	
-
 
 	def enable(self,p):
 		if p < 0 or p > 3:
