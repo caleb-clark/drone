@@ -7,7 +7,7 @@ from wiringSetup import *
 from cmd import *
 import serial
 import threading
-
+import os
 
 class controller:
 
@@ -61,7 +61,7 @@ class controller:
 		temp_.append(self.armPin)
 		setup(temp_, [])
 
-		threading.Thread(target=self.listener).start()
+		#threading.Thread(target=self.listener).start()
 
 
 
@@ -84,13 +84,13 @@ class controller:
 		if self.verticalPower(0) == -1:
 			print ('Lift off failed: Could not set vertical power level for lift off')
 			return -1
-		if self.rotationalPower(self.defaultRotationalPower) == -1:
+		if self.rotationalPower(50) == -1:
 			print ('Lift off failed: Could not set rotational power level for lift off')
 			return -1
-		if self.lateralPower(self.defaultLateralPower) == -1:
+		if self.lateralPower(50) == -1:
 			print ('Lift off failed: Could not set lateral power level for lift off')
 			return -1
-		if self.forwardPower(self.defaultForwardPower) == -1:
+		if self.forwardPower(50) == -1:
 			print ('Lift off failed: Could not set forward power level for lift off')
 			return -1
 
@@ -169,12 +169,12 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(0)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.verticalMultiplier
+			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.verticalMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
 			self.currVerticalPower = power
-			self.currVerticalVoltage = (voltage_dac_val/4096.0)*5.0
+			self.currVerticalVoltage = ((voltage_dac_val/4096.0)*self.dacInputVoltage)/self.verticalMultiplier
 			self.powerChangeLock.release()
 			return 0
 	def fbf(self):
@@ -199,12 +199,12 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(1)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.rotationalMultiplier
+			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.rotationalMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
 			self.currRotationalPower = power
-			self.currRotationalVoltage = (voltage_dac_val/4096.0)*5.0
+			self.currRotationalVoltage = ((voltage_dac_val/4096.0)*self.dacInputVoltage)/self.rotationalMultiplier
 			self.powerChangeLock.release()
 			return 0
 
@@ -226,12 +226,12 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(2)
 			self.multiplierLock.acquire()
-			voltage_dac_val = ((4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0)))*self.lateralMultiplier
+			voltage_dac_val = ((4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage)))*self.lateralMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
 			self.currLateralPower = power
-			self.currLateralPower = (voltage_dac_val/4096.0)*5.0
+			self.currLateralVoltage = ((voltage_dac_val/4096.0)*self.dacInputVoltage)/self.lateralMultiplier
 			self.powerChangeLock.release()
 			return 0
 
@@ -251,12 +251,12 @@ class controller:
 			self.powerChangeLock.acquire()
 			self.enable(3)
 			self.multiplierLock.acquire()
-			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.forwardMultiplier
+			voltage_dac_val = (4096.0*(3.42/self.dacInputVoltage) - self.powerToDacVal(power)*(3.42/self.dacInputVoltage))*self.forwardMultiplier
 			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
 			
 			self.currForwardPower = power
-			self.currForwardVoltage = (voltage_dac_val/4096.0)*5.0
+			self.currForwardVoltage = ((voltage_dac_val/4096.0)*self.dacInputVoltage)/self.forwardMultiplier
 			self.powerChangeLock.release()
 			return 0
 
@@ -423,45 +423,69 @@ class controller:
 
 
 
-	def lisener(self):
-		ser = serial.Serial('dev/tty.usbserial', 9600)
-		while(True):
-			ser.write(bytes(b'GET'))
-			voltages = ser.readLine().split(" ")
-			errVertical = (round(float(voltages[0],2)) != round(float(self.currVerticalVoltage),2))
-			errRotational = (round(float(voltages[1],2)) != round(float(self.currRotationalVoltage),2))
-			errLateral = (round(float(voltages[2],2))!= round(float(self.currLateralVoltage),2))
-			errForward = (round(float(voltages[3],2)) != round(float(self.currForwardVoltage),2))
-			if errVertical :
+	def listener(self):
+		ser = serial.Serial('/dev/ttyACM0', 115200)
+                #print("-1")
+                while(True):
+                        #print("0")
+			#ser.write("0")
+			#print("1")
+                        while ser.in_waiting == 0:
+                            #print("blah")
+                            continue
+                        voltages2 = []
+                        while ser.in_waiting > 0:
+                            voltages2 = ser.readline()
+                        #print(voltages)
+                        voltages2 = voltages2.split('\r\n')[0]
+                        voltages2 = voltages2.split(" ")
+                        if len(voltages2) != 4:
+                            continue
+			print(voltages2)
+                        voltages = []
+                        for i in voltages2:
+                            voltages.append(float(i)/100.0)
+                        for i in voltages:
+                            print(i)
+			errVertical = (round(float(voltages[0]),2) != round(float(self.currVerticalVoltage),2))
+			errRotational = (round(float(voltages[1]),2) != round(float(self.currRotationalVoltage),2))
+			errLateral = (round(float(voltages[2]),2)!= round(float(self.currLateralVoltage),2))
+			errForward = (round(float(voltages[3]),2) != round(float(self.currForwardVoltage),2))
+                        for i in range(0,len(voltages)):
+                            if type(voltages[i]) is float:
+                                print('float')
+                        
+                        if errVertical and voltages[0] > 0.0:
 				self.multiplierLock.acquire()
 				self.verticalMultiplier = self.verticalMultiplier*float(self.currVerticalVoltage)/float(voltages[0])
 				self.multiplierLock.release()
 				self.verticalPower(self.currVerticalPower)
             	
-            if errRotational :
-            	self.multiplierLock.acquire()
-                self.rotationalMultiplier = self.rotationalMultiplier*float(self.currRotationalVoltage)/float(voltages[1])
-                self.multiplierLock.release()
-    	        self.rotationalPower(self.currRotationalPower)
+            		if errRotational and voltages[1] > 0.0:
+		            	self.multiplierLock.acquire()
+		                self.rotationalMultiplier = self.rotationalMultiplier*float(self.currRotationalVoltage)/float(voltages[1])
+		                self.multiplierLock.release()
+		    	        self.rotationalPower(self.currRotationalPower)
 				
-			if errLateral :
+			if errLateral and voltages[2] > 0.0:
 				self.multiplierLock.acquire()
-				self.lateralMultiplier = self.lateralMultiplier*float(self.currLateralMultiplier)/float(voltages[2])
+				self.lateralMultiplier = self.lateralMultiplier*float(self.currLateralVoltage)/float(voltages[2])
 				self.multiplierLock.release()
 				self.lateralPower(self.currLateralPower)
 				
-			if errForward:
+			if errForward and voltages[3] > 0.0:
 				self.multiplierLock.acquire()
-				self.forwardMultiplier = self.forwardMultiplier*float(self.currForwardMultiplier)/float(voltages[3])
+				self.forwardMultiplier = self.forwardMultiplier*float(self.currForwardVoltage)/float(voltages[3])
 				self.multiplierLock.release()
 				self.forwardPower(self.currForwardPower)
-	
+	                
+                            
+        def startThread(self):
+            threading.Thread(target=self.listener).start()                
 
-		
 
 
 
-
-g = controller(5.0)
+g = controller(5.095)
 g.setLiftOffPowerLevels()
 
