@@ -6,6 +6,7 @@ import Adafruit_MCP4725
 from wiringSetup import *
 from cmd import *
 import serial
+import threading
 
 
 class controller:
@@ -50,13 +51,10 @@ class controller:
 		self.lateralMultiplier = 1.0
 		self.forwardMultiplier = 1.0
 
-		with open('multipliers.txt','r') as inputfile:
-			tmp = inputfile.readlines()
-			if len(tmp) == 4:
-				self.verticalMultiplier = float(tmp[0])
-				self.rotationalMultiplier = float(tmp[1])
-				self.lateralMultiplier = float(tmp[2])
-				self.forwardMultiplier = float(tmp[3])
+		self.multiplierLock = threading.Lock()
+		self.powerChangeLock = threading.Lock()
+
+
 
 		initPins()
 		temp_ = self.enablePins
@@ -161,17 +159,22 @@ class controller:
 		power: % of power from 0 to 100 %
 
 		'''
+
 		raw_voltage_val = self.powerToVoltage(power)
 		if power < 0 or power > 100:
 			print('Invalid power value')
 			return -1
 		else:
+			self.powerChangeLock.acquire()
 			self.enable(0)
+			self.multiplierLock.acquire()
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.verticalMultiplier
-			print(voltage_dac_val)
+			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
+			
 			self.currVerticalPower = power
 			self.currVerticalVoltage = (voltage_dac_val/4096.0)*5.0
+			self.powerChangeLock.release()
 			return 0
 	def fbf(self):
 		self.verticalPower(50.5)
@@ -192,11 +195,16 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
+			self.powerChangeLock.acquire()
 			self.enable(1)
+			self.multiplierLock.acquire()
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.rotationalMultiplier
+			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
+			
 			self.currRotationalPower = power
 			self.currRotationalVoltage = (voltage_dac_val/4096.0)*5.0
+			self.powerChangeLock.release()
 			return 0
 
 
@@ -214,11 +222,16 @@ class controller:
 			print('Requested value exceeds the joysticks maximum voltage (you might want to switch to 3.3 V input to the DAC)')
 			return -1
 		else:
+			self.powerChangeLock.acquire()
 			self.enable(2)
+			self.multiplierLock.acquire()
 			voltage_dac_val = ((4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0)))*self.lateralMultiplier
+			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
+			
 			self.currLateralPower = power
 			self.currLateralPower = (voltage_dac_val/4096.0)*5.0
+			self.powerChangeLock.release()
 			return 0
 
 
@@ -234,11 +247,16 @@ class controller:
 			return -1
 
 		else:
+			self.powerChangeLock.acquire()
 			self.enable(3)
+			self.multiplierLock.acquire()
 			voltage_dac_val = (4096.0*(3.42/5.0) - self.powerToDacVal(power)*(3.42/5.0))*self.forwardMultiplier
+			self.multiplierLock.release()
 			self.dac.set_voltage(int(voltage_dac_val))
+			
 			self.currForwardPower = power
 			self.currForwardVoltage = (voltage_dac_val/4096.0)*5.0
+			self.powerChangeLock.release()
 			return 0
 
 
@@ -293,11 +311,13 @@ class controller:
 	def calibrate(self):
 		while True:
 			print('Calibrating 0th DAC')
-			print(str(self.verticalMultiplier))
+			
 			self.verticalPower(50)
 			should_be = 0.5*3.42
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.multiplierLock.acquire()
 			self.verticalMultiplier = self.verticalMultiplier*float(should_be)/float(actual)
+			self.multiplierLock.release()
 			self.verticalPower(50)
 			check = raw_input("Does that look good? 1=yes, 0=no: ")
 			if check == '1' or check == "1":
@@ -308,7 +328,9 @@ class controller:
 			self.rotationalPower(50)
 			should_be = 0.5*3.42
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.multiplierLock.acquire()
 			self.rotationalMultiplier = self.rotationalMultiplier*float(should_be)/float(actual)
+			self.multiplierLock.release()
 			self.rotationalPower(50)
 			check = raw_input("Does that look good? 1=yes, 0=no: ")
 			if check == '1' or check == "1":
@@ -319,7 +341,9 @@ class controller:
 			self.lateralPower(50)
 			should_be = 0.5*3.42
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.multiplierLock.acquire()
 			self.lateralMultiplier = self.lateralMultiplier*(float(should_be)/float(actual))
+			self.multiplierLock.release()
 			self.lateralPower(50)
 			check = raw_input("Does that look good? 1=yes, 0=no: ")
 			if check == '1' or check == "1":
@@ -330,7 +354,9 @@ class controller:
 			self.forwardPower(50)
 			should_be = 0.5*3.42
 			actual = raw_input("Should be " + str(should_be) + " V, what do you see? ")
+			self.multiplierLock.acquire()
 			self.forwardMultiplier = self.forwardMultiplier*float(should_be)/float(actual)
+			self.multiplierLock.release()
 			self.forwardPower(50)
 			check = raw_input("Does that look good? 1=yes, 0=no: ")
 			if check == '1' or check == "1":
