@@ -9,6 +9,8 @@ import json
 from controller import *
 import math
 import time
+from drone import *
+
 '''
 JSON Message fields:
 0: Vertical Power Leve [float]
@@ -27,7 +29,7 @@ Modes
 
 class pi2pi:
 
-	def __init__(self, isBaseStation, portNum=55655, bsAddr="localhost", hostName="localhost", default_filename = 'attributes_default.ini', curr_filename='attributes_curr.ini', changesThreshold=20):
+	def __init__(self, isBaseStation, droneConnectionStr='', portNum=55655, bsAddr="localhost", hostName="localhost", default_filename = 'attributes_default.ini', curr_filename='attributes_curr.ini', changesThreshold=20):
 		self.isBaseStation = isBaseStation
 		self.hostName = hostName
 		self.portNum = portNum
@@ -40,7 +42,7 @@ class pi2pi:
 		if isBaseStation:
 			self.buddy = controller(5.117)
 		else:
-			self.buddy = None # put in stuff for drone() class
+			self.buddy = droneStats(droneConnectionStr) # put in stuff for drone() class
 
 
 		self.powerLevels = {
@@ -137,13 +139,16 @@ class pi2pi:
 
 
 		for i in axisDict:
-			if not (i in self.powerCodes):
+			if not (i in self.powerCodes) && i != 4:
 				print(str(i) + ' not a valid power axis code!')
 				return False
 
 
 		if self.isBaseStation:
 			for i in axisDict:
+				if i == 4 or i == 1:
+					continue #TODO: figure out rotational power
+
 				if i == 0:
 					self.buddy.verticalPower(axisDict[i])
 				elif i == 1:
@@ -170,36 +175,25 @@ class pi2pi:
 	def jsonToDict(self, jsonStr):
 		return json.loads(jsonStr)
 
-	def baseStationLoop(self):
-		
-		self.socket = socket.socket() # Create a socket object
-		
-		self.hostName = socket.gethostname()   # Get local machine name
-					
-		self.socket.bind((self.hostName, self.portNum))        # Bind to the port
 
-		self.socket.listen()                   # Now wait for client connection.
-		
-		self.clientSocket, self.clientAddress = self.socket.accept()      # Establish connection with client.
 
-		self.clientSocket.send('HOWDY')
-
-		while True:
 
 	def maintainVelocity(self,axis):
 
 		toReturn = [self.powerLevels[0],self.powerLevels[1],self.powerLevels[2],self.powerLevels[3]]
 
+
 		if len(axis) != 4:
 			return toReturn
 
 		for i in range(0,len(axis)):
-			if axis[i]:
+			if axis[i] and i != 1:
 				currAxisVelo = None
 				if i == 0:
 					currAxisVelo = self.buddy.getVerticalVelocity()
 				elif i == 1:
-					currAxisVelo = self.buddy.getRotationalVelocity()
+					#currAxisVelo = self.buddy.getRotationalVelocity()
+					continue
 				elif i == 2:
 					currAxisVelo = self.buddy.getLateralVelocity()
 				elif i == 3:
@@ -210,12 +204,12 @@ class pi2pi:
 					if currAxisVelo < 0:
 						if newPowerLevel >= 50:
 							newPowerLevel = 49
-						else:
+						elif newPowerLevel > 35:
 							newPowerLevel -= 1
 					else:
 						if newPowerLevel <= 50:
 							newPowerLevel = 51
-						else:
+						elif newPowerLevel < 65:
 							newPowerLevel += 1
 
 
@@ -325,6 +319,7 @@ class pi2pi:
 		self.currMode = 2
 
 	def mobileUnitLoop(self):
+		
 		while not self.buddy.armed():
 			continue
 
@@ -388,7 +383,35 @@ class pi2pi:
 				continue # TODO2 get feedback
 
 			
+	def baseStationLoop(self):
+		
+		self.socket = socket.socket() # Create a socket object
+		
+		self.hostName = socket.gethostname()   # Get local machine name
+					
+		self.socket.bind((self.hostName, self.portNum))        # Bind to the port
 
+		self.socket.listen()                   # Now wait for client connection.
+		
+		self.clientSocket, self.clientAddress = self.socket.accept()      # Establish connection with client.
 
+		self.clientSocket.send('HOWDY')
+
+		while True:
+			
+			jsonStr = self.clientSocket.recv(1024)
+			
+			changesDict = jsonToDict(jsonStr)
+
+			adjustPower(changesDict)
+
+			#mode change
+			if 4 in changesDict:
+				if not changeMode(changesDict[4]):
+					pass #TODO2 - feedback stuff
+				else:
+					pass #TODO2
+
+			self.socket.send('ACK')
 
 
