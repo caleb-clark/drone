@@ -9,7 +9,7 @@ import dronekit_sitl
 
 class droneStats:
 
-	__init__(self, connectionString):
+	def __init__(self, connectionString):
 		self.connectionString = connectionString
 
 		self.vehicle = connect(connection_string, wait_ready=True, baud=57600)

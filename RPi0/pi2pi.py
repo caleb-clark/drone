@@ -103,7 +103,7 @@ class pi2pi:
 					
 			if self.currMode == 0:
 				if mode == 1:
-					self.currMode == mode:
+					self.currMode = mode
 					return True
 				
 			elif self.currMode == 1:
@@ -139,7 +139,7 @@ class pi2pi:
 
 
 		for i in axisDict:
-			if not (i in self.powerCodes) && i != 4:
+			if not (i in self.powerCodes) and i != 4:
 				print(str(i) + ' not a valid power axis code!')
 				return False
 
