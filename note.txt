@@ -4,3 +4,5 @@ the drone is going to the right and back but the voltage levels would indicate t
 - lateral voltage 1.702
 - forward voltage 1.702
 - pay back Eric
+- look into droneCore
+- calibrate the drone with the app

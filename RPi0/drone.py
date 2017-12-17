@@ -12,7 +12,7 @@ class droneStats:
 	def __init__(self, connectionString):
 		self.connectionString = connectionString
 
-		self.vehicle = connect(connection_string, wait_ready=True, baud=57600)
+		self.vehicle = connect(connection_string, wait_ready=True)
 		self.vehicle.wait_ready('autopilot_version')
 		atexit.register(exit_func)
 	def getVerticalVelocity(self):
@@ -21,7 +21,7 @@ class droneStats:
 		return self.vehicle.velocity[0]
 	def getForwardVelocity(self):
 		return self.vehicle.velocity[1]
-	def getRotationalPosition():
+	def getRotationalPosition(self):
 		return self.vehicle.attitude.yaw
 	def armed(self):
 		return self.vehicle.armed
