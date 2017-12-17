@@ -6,167 +6,412 @@ import socket
 import sys
 from random import randint
 import json
+from controller import *
+import math
+import time
+from drone import *
+
+'''
+JSON Message fields:
+0: Vertical Power Leve [float]
+1: Rotational Power  [float]
+2: Lateral Power [float]
+3: Forward Power [float]
+4: Mode [int]
+
+'''
+'''
+Modes
+
+'''
 
 
-''' Implement dictionary to keep track of which attributes have changed '''
 
 class pi2pi:
 
-	def __init__(self, isBaseStation, recoveryMode = False,portNum=55655, bsAddr="localhost", hostName="localhost", default_filename = 'attributes_default.ini', curr_filename='attributes_curr.ini', changesThreshold=20):
-
+	def __init__(self, isBaseStation, droneConnectionStr='', portNum=55655, bsAddr="localhost", hostName="localhost", default_filename = 'attributes_default.ini', curr_filename='attributes_curr.ini', changesThreshold=20):
 		self.isBaseStation = isBaseStation
 		self.hostName = hostName
 		self.portNum = portNum
 		self.bsAddr = bsAddr 
 		self.socket = None
-		self.status = 0
-		self.attribute_list = []
-		self.attributes = {}
-		self.attributes_changes = {}
-		self.config_default = ConfigParser.ConfigParser()
-		self.config_curr = ConfigParser.ConfigParser()
-		self.config_section = 'attributes'
-		self.config_has_changed = False
-		self.default_filename = default_filename
-		self.curr_filename = curr_filename
-		self.recoveryMode = recoveryMode
-		self.changesSinceBackup = 0
-		self.changesThreshold = changesThreshold
-
-		
-		self.readConfig(self.default_filename,self.config_section, self.config_default)
-
-		if not self.recoveryMode:
-			copyfile(self.default_filename, self.curr_filename)
-		# PUT IN RECOVER MODE STUFF
+		self.buddy = None
+		self.currMode = 0
+		self.clientSocket = None
+		self.clientAddress = None
+		if isBaseStation:
+			self.buddy = controller(5.117)
+		else:
+			self.buddy = droneStats(droneConnectionStr) # put in stuff for drone() class
 
 
+		self.powerLevels = {
+			0: 0,
+			1: 50,
+			2: 50,
+			3: 50
+		}
 
+		self.powers = {
+			'VERTICAL': 0,
+			'ROTATIONAL': 1,
+			'LATERAL': 2,
+			'FORWARD':3
+		}
 
-	def readConfig(self, fileName, section, parser):
-	    parser.read('./attributes_default.ini')
-	    self.attribute_list = parser.options(section)
-	    for attr in self.attribute_list:
-	        try:
-	            self.attributes[attr] = parser.get(section, attr)
-	            self.attributes_changes[attr] = False
+		self.powerCodes = {
+			0: 'VERTICAL',
+			1: 'ROTATIONAL',
+			2: 'LATERAL',
+			3: 'FORWARD'
+		}
 
-	        except:
-	            print("exception on %s!" % attr)
-	            self.attributes[attr] = None
-	    print(self.attributes)
-	    
-	def writeConfig(self, attr, new_val):
-		with open(self.curr_filename) as cfgfile:
-			self.config_curr.add_section(self.config_section)
-			self.config_curr.set(self.config_section,attr,new_val)
-			self.config_curr.write(cfgfile)
-			
+		self.modes = {
+			'LANDED': 0,
+			'TAKEOFF': 1,
+			'LANDING': 2,
+			'IDLE': 3,
+			'FLYING': 4,
+			'CRASH': 5
+		}
+
+		self.modeCodes = {
+			0: 'LANDED',
+			1: 'TAKEOFF',
+			2: 'LANDING',
+			3: 'IDLE',
+			4: 'FLYING',
+			5: 'CRASH'
+		}
+
+		self.socket = None
 
 	def loop(self):
+		if isBaseStation:
+			baseStationLoop()
+		else:
+			mobileUnitLoop()
+
+	def changeMode(self, mode):
+
+		if not (mode in self.modeCodes):
+			return False
 		if self.isBaseStation:
-			self.baseStationLoop()
+			if mode == 5:
+				self.currMode == 5
+				return True
+					
+			if self.currMode == 0:
+				if mode == 1:
+					self.currMode == mode:
+					return True
+				
+			elif self.currMode == 1:
+				if mode == 3:
+					self.currMode = mode
+					return True
+				
+			elif self.currMode == 2:
+				if mode == 0 or mode == 3:
+					self.currMode == mode
+					return True
+				
+			elif self.currMode == 3:
+				if mode == 1 or mode == 2 or mode == 4:
+					self.currMode = mode
+					return True
+				
+			elif self.currMode == 4:
+				if mode == 3:
+					self.currMode = mode
+					return True
+			elif self.currMode == 5:
+				return False
+			else:
+				return False
+			return False
 		else:
-			self.mobileUnitLoop()
+			return True
 
-	def getHostName(self):
 
-		return self.hostName
 
-	def getPortNum(self):
-		return self.portNum
+	def adjustPower(self, axisDict):
 
-	def getIsBaseStation(self):
-		return self.isBaseStation
 
-	def getStatus(self):
-		return self.status
+		for i in axisDict:
+			if not (i in self.powerCodes) && i != 4:
+				print(str(i) + ' not a valid power axis code!')
+				return False
 
-	def setStatus(self, status_code):
-		if not self.getIsBaseStation():
-			self.status = status_code
-			return 0
+
+		if self.isBaseStation:
+			for i in axisDict:
+				if i == 4 or i == 1:
+					continue #TODO: figure out rotational power
+
+				if i == 0:
+					self.buddy.verticalPower(axisDict[i])
+				elif i == 1:
+					self.buddy.rotationalPower(axisDict[i])
+				elif i == 2:
+					self.buddy.lateralPower(axisDict[i])
+				elif i == 3:
+					self.buddy.forwardPower(axisDict[i])
 		else:
-			print('Cannot set status')
-			return -1
-	def getAttribute(self, attr):
-		return self.attributes[attr]
+			return axisDict
 
-	def setAttribute(self, attr, new_val):
-		if self.attributes[attr] != None:
-			self.attributes[attr] = new_val
-			self.attributes_changes[attr] = True
-			self.changesSinceBackup += 1
-			if self.changesSinceBackup >= self.changesThreshold:
-				synchronization()
+	def sendDict(self, dict_):
+		if self.isBaseStation:
+			data_string = json.dumps(dict_) #data serialized
+			self.clientSocket.send(data_string)
+		else:	
+			data_string = json.dumps(dict_) #data serialized
+			self.socket.send(data_string)
+			return self.socket.recv(1024)
+	
+			
 
-	def synchronization(self):
-		#remember to reset changes counter!!
-		pass
 
+	def jsonToDict(self, jsonStr):
+		return json.loads(jsonStr)
+
+
+
+
+	def maintainVelocity(self,axis):
+
+		toReturn = [self.powerLevels[0],self.powerLevels[1],self.powerLevels[2],self.powerLevels[3]]
+
+
+		if len(axis) != 4:
+			return toReturn
+
+		for i in range(0,len(axis)):
+			if axis[i] and i != 1:
+				currAxisVelo = None
+				if i == 0:
+					currAxisVelo = self.buddy.getVerticalVelocity()
+				elif i == 1:
+					#currAxisVelo = self.buddy.getRotationalVelocity()
+					continue
+				elif i == 2:
+					currAxisVelo = self.buddy.getLateralVelocity()
+				elif i == 3:
+					currAxisVelo = self.buddy.getForwardVelocity()
+				newPowerLevel = toReturn[i]
+
+				if math.fabs(currAxisVelo) > 0.02:
+					if currAxisVelo < 0:
+						if newPowerLevel >= 50:
+							newPowerLevel = 49
+						elif newPowerLevel > 35:
+							newPowerLevel -= 1
+					else:
+						if newPowerLevel <= 50:
+							newPowerLevel = 51
+						elif newPowerLevel < 65:
+							newPowerLevel += 1
+
+
+				toReturn[i] = newPowerLevel
+
+		return toReturn
+
+
+
+	def takeOff(self):
+		time.sleep(3)
+		
+		changesDict = {}
+
+		maintainArr = [False,True,True,True]
+
+		changesDict[0] = 51
+		self.powerLevels[0] = 51
+
+		sendDict(changesDict)
+
+
+
+
+		start_ = time.time()
+
+		while (time.time() - start_) < 1.0:
+			changesDict2 = {}
+			newPowerLevels = maintainVelocity(maintainArr)
+			changesDict2[1] = newPowerLevels[1]
+			self.powerLevels[1] = newPowerLevels[1]
+			
+			changesDict2[2] = newPowerLevels[2]
+			self.powerLevels[2] = newPowerLevels[2]
+
+			changesDict2[3] = newPowerLevels[3]
+			self.powerLevels[3] = newPowerLevels[3]
+
+			sendDict(changesDict2)
+
+
+		changesDict[0] = 50
+		self.powerLevels[0] = 50
+		changesDict[4] = 3
+		self.currMode = 3
+		sendDict(changesDict)
+
+
+	def land(self):
+		time.sleep(3)
+		
+		changesDict = {}
+
+		maintainArr = [False,True,True,True]
+
+		changesDict[0] = 49
+		self.powerLevels[0] = 49
+
+		sendDict(changesDict)
+
+
+
+
+		start_ = time.time()
+
+		while (time.time() - start_) < 1.0:
+			changesDict2 = {}
+			newPowerLevels = maintainVelocity(maintainArr)
+			changesDict2[1] = newPowerLevels[1]
+			self.powerLevels[1] = newPowerLevels[1]
+			
+			changesDict2[2] = newPowerLevels[2]
+			self.powerLevels[2] = newPowerLevels[2]
+
+			changesDict2[3] = newPowerLevels[3]
+			self.powerLevels[3] = newPowerLevels[3]
+			sendDict(changesDict2)
+
+
+		changesDict[0] = 10
+		self.powerLevels[0] = 10
+		changesDict[4] = 0
+		self.currMode = 0
+		sendDict(changesDict)	
+	def idle(self, time_):
+		maintainArr = [True,True,True,True]
+		while (time.time() - start_) < time_:
+			changesDict2 = {}
+			newPowerLevels = maintainVelocity(maintainArr)
+
+			changesDict2[1] = newPowerLevels[1]
+			self.powerLevels[1] = newPowerLevels[1]
+
+			changesDict2[1] = newPowerLevels[1]
+			self.powerLevels[1] = newPowerLevels[1]
+			
+			changesDict2[2] = newPowerLevels[2]
+			self.powerLevels[2] = newPowerLevels[2]
+
+			changesDict2[3] = newPowerLevels[3]
+			self.powerLevels[3] = newPowerLevels[3]
+			sendDict(changesDict2)
+		
+		changesDict = {4:2}
+		
+		sendDict(changesDict)
+		self.currMode = 2
+
+	def mobileUnitLoop(self):
+		
+		while not self.buddy.armed():
+			continue
+
+		self.socket = socket.socket()         # Create a socket object
+
+		address = ''
+
+		print(self.bsAddr)
+
+		if self.bsAddr == "localhost":
+			address = socket.gethostname()
+		else:
+			address = self.bsAddr
+		
+		self.socket.connect((address, self.portNum))
+
+		msg = self.socket.recv(1024)
+
+		if msg != 'HOWDY':
+			print(msg)
+			self.socket.send('FUCK OFF')
+			self.socket.close()
+			exit()
+
+		'''
+		TODO1: Implement vertical limiting on takeoff,
+			  vertical limiting = distance/velocity/timeout
+		TODO2: Receive info from base station about what
+			  part of the request could be fulfilled and
+			  take action based on that
+		'''
+
+		while True:
+
+			changesDict = {}
+
+			if self.currMode == 0:
+				if powerLevels[0] == 0:
+					changesDict[0] = 10
+					powerLevels[0] = 10 #TODO2 wait for feedback before changing
+				if powerLevels[0] > 0:
+					changesDict[4] = 1
+			elif self.currMode == 1:
+				self.takeOff()
+				continue
+			elif self.currMode == 2:
+				self.land()
+				continue
+			elif self.currMode == 3:
+				self.idle()
+				continue
+
+
+
+			sendDict(changesDict)
+			msg = self.socket.recv(1024)
+
+			if msg == 'ACK':
+				continue
+			else:
+				continue # TODO2 get feedback
+
+			
 	def baseStationLoop(self):
+		
 		self.socket = socket.socket() # Create a socket object
+		
 		self.hostName = socket.gethostname()   # Get local machine name
 					
 		self.socket.bind((self.hostName, self.portNum))        # Bind to the port
 
-		self.socket.listen(5)                   # Now wait for client connection.
+		self.socket.listen()                   # Now wait for client connection.
 		
-		c, addr = self.socket.accept()      # Establish connection with client.
-		print 'Got connection from', addr
-		c.send('HELLO')
-		
-		msg = c.recv(1024)
-		print(msg)
-		if msg == 'HELLO':
-			print('here')
-			while True:
-				print('loop')
-				c.send('READY')
-				data_string = c.recv(1024)
-				print(data_string)
-				data_loaded = json.loads(data_string) #data loaded
+		self.clientSocket, self.clientAddress = self.socket.accept()      # Establish connection with client.
 
-				print(data_loaded['000'])
-				break
-		c.close()                 # Close the connection
+		self.clientSocket.send('HOWDY')
 
-	def mobileUnitLoop(self):
-		self.socket = socket.socket()         # Create a socket object
-		address = ''
-		print(self.bsAddr)
-		if self.bsAddr == "localhost":
-			print('blah blah')
-			address = socket.gethostname()
-		else:
-			address = self.bsAddr
-		print(address)
-		print('\n')
-		self.socket.connect((address, self.portNum))
+		while True:
+			
+			jsonStr = self.clientSocket.recv(1024)
+			
+			changesDict = jsonToDict(jsonStr)
 
-		msg = self.socket.recv(1024)
-		print(msg)
-		if msg == 'HELLO':
-			self.socket.send('HELLO')
-			msg = self.socket.recv(1024)
-			print(msg)
-			if msg == 'READY':
-				test_dict = {}
-				test_dict['000'] = 000
-				print('test_dict')
-				print(test_dict)
+			adjustPower(changesDict)
 
-				data_string = json.dumps(test_dict) #data serialized
-				print(data_string)
-				self.socket.send(data_string)
+			#mode change
+			if 4 in changesDict:
+				if not changeMode(changesDict[4]):
+					pass #TODO2 - feedback stuff
+				else:
+					pass #TODO2
 
-		self.socket.close                     # Close the socket when done
+			self.socket.send('ACK')
 
-portNum_ = int(sys.argv[1])
 
-if len(sys.argv) > 2:
-	q = pi2pi(True, portNum=portNum_)
-	q.loop()
-else:
-	q = pi2pi(False, portNum=portNum_)
-	q.loop()
